@@ -1,179 +1,126 @@
 /**
- * Description: Persistent Li Chao Tree.
- * A fully persistent version of Li Chao Tree.
- * Useful for problems requiring querying past versions of the structure (e.g., on trees).
- *
- * Complexity: O(log C) per update/query. Space O(Q log C).
- * Input: Lines, Updates, Queries.
- * Output: Min/Max value.
- * Problem: https://judge.yosupo.jp/problem/segment_add_get_min (can be solved non-persistently, but structure works)
+ * Persistent Li Chao Tree
+ * Fully persistent version - can query any past version
+ * Useful for tree DP problems where you need ancestor versions
+ * 
+ * Usage:
+ *   PersistentLiChaoTree tree(min_x, max_x);
+ *   int v0 = 0;  // Initial version (empty tree)
+ *   int v1 = tree.add_line(v0, {m, c});  // Returns new version index
+ *   int v2 = tree.add_line(v1, {m2, c2});
+ *   ll ans = tree.query(v1, x);  // Query version v1 at point x
+ * 
+ * Complexity: O(log C) per update/query, O(Q log C) space
  */
 
 #include<bits/stdc++.h>
 using namespace std;
 
 #define ll long long
-#define eb emplace_back
-#define nl '\n'
 
-const int N = 1e5 + 9;
+const ll INF = 2e18;
 
 struct Line {
-  ll k, d;
-  ll eval(ll x) {
-    return k * x + d;
-  }
+    ll k, d;
+    ll eval(ll x) { return k * x + d; }
 };
 
 struct LiChaoNode {
-  Line line;
-  int l, r; // Indices of children in the node pool
-  LiChaoNode() {
-    line = Line({0, numeric_limits<long long>::max() / 2}); // Identity for Min Query
-    l = 0, r = 0;
-  }
-  LiChaoNode(Line line) : line(line), l(0), r(0) {}
-} t[50 * N]; // Node pool
+    Line line;
+    int l, r;
+    LiChaoNode() {
+        line = {0, INF};
+        l = 0; r = 0;
+    }
+    LiChaoNode(Line line) : line(line), l(0), r(0) {}
+} t[6000005]; // ~60 nodes per query * 10^5 queries
 
-int T; // Node counter
+int T = 0;
 
-// Persistent Update
-// Returns index of new node
-int upd(int pre, Line nw, int l, int r) {
-  int m = (l + r) / 2;
-  int id = ++T;
-  
-  // Copy previous node
-  t[id] = t[pre]; // Copy line and children
-  
-  // Standard Li Chao Logic
-  bool lef = nw.eval(l) < t[id].line.eval(l);
-  bool mid = nw.eval(m) < t[id].line.eval(m);
-  
-  if(mid) swap(t[id].line, nw);
-  
-  if(l == r) return id;
-  
-  if(lef != mid) {
-    t[id].l = upd(t[pre].l, nw, l, m); // Create new left child
-  } else {
-    t[id].r = upd(t[pre].r, nw, m + 1, r); // Create new right child
-  }
-  return id;
+int upd(int pre, Line nw, ll l, ll r) {
+    int id = ++T;
+    t[id] = t[pre]; // Copy previous node
+    
+    ll m = l + (r - l) / 2;
+    
+    bool lef = nw.eval(l) < t[id].line.eval(l);
+    bool mid = nw.eval(m) < t[id].line.eval(m);
+    
+    if (mid) swap(t[id].line, nw);
+    
+    if (l == r) return id;
+    
+    if (lef != mid) {
+        t[id].l = upd(t[pre].l, nw, l, m);
+    } else {
+        t[id].r = upd(t[pre].r, nw, m + 1, r);
+    }
+    return id;
 }
 
-ll Query(int cur, int x, int l, int r) {
-  if (!cur) return numeric_limits<long long>::max() / 2; // Handle null nodes
-  ll val = t[cur].line.eval(x);
-  int m = (l + r) / 2;
-  if(l < r) {
-    if(x <= m) val = min(val, Query(t[cur].l, x, l, m));
-    else val = min(val, Query(t[cur].r, x, m + 1, r));
-  }
-  return val;
+ll Query(int cur, ll x, ll l, ll r) {
+    if (!cur) return INF;
+    ll val = t[cur].line.eval(x);
+    ll m = l + (r - l) / 2;
+    if (l < r) {
+        if (x <= m) val = min(val, Query(t[cur].l, x, l, m));
+        else val = min(val, Query(t[cur].r, x, m + 1, r));
+    }
+    return val;
 }
 
 struct PersistentLiChaoTree {
-  int L, R;
-  vector<int> roots;
-  PersistentLiChaoTree() {
-    roots = {0}; // 0 is dummy/empty root
-    T = 0;
-    L = -1e9;
-    R = 1e9;
-    t[0] = LiChaoNode(); // Init empty node 0
-  }
-  PersistentLiChaoTree(int L, int R) : L(L), R(R) {
-    T = 0;
-    roots.push_back(0);
-    t[0] = LiChaoNode();
-  }
-  int add_line(int p_ver, Line line) {
-    int old_root = roots[p_ver];
-    int new_root = upd(old_root, line, L, R);
-    roots.push_back(new_root);
-    return roots.size() - 1;
-  }
-  ll query(int i, int x) {
-    return Query(roots[i], x, L, R);
-  }
-} lt;
-
-// Example: Tree Path Optimization Problem
-// DP[u] depends on ancestors.
-// dp[u] = min/max( ... + V_j * S_u + ... )
-// Persistent Li Chao allows querying structure at ancestor 'u'.
-
-ll sum[N];
-vector<pair<int, int>> g[N];
-ll ans[N], p[N], s[N];
-
-void dfs(int u, int pre = 0) {
-  for(auto x : g[u]) {
-    int v = x.first, d = x.second;
-    if(v == pre) continue;
-    sum[v] = sum[u] + d;
-    dfs(v, u);
-  }
-}
-
-void yo(int u, int pre = 0) {
-  // Current root is the last added version
-  // int cur_root_idx = lt.roots.size() - 1;
-  // Actually we need to track which version corresponds to 'u'.
-  // But since we do DFS, we can just push/pop versions (stack-like persistence)
-  // OR use true persistence (pass version index).
-  // This implementation uses a global 'roots' vector as a stack, which works for DFS.
-  
-  for(auto x : g[u]) {
-    int v = x.first;
-    if(v == pre) continue;
+    ll L, R;
+    vector<int> roots;
     
-    // Query using current version (ancestor info)
-    // Example equation
-    ans[v] = lt.query((int)lt.roots.size() - 1, p[v]) + sum[v] * p[v] + s[v];
+    PersistentLiChaoTree() {}
+    PersistentLiChaoTree(ll L, ll R) : L(L), R(R) {
+        roots = {0}; // Version 0 is empty tree
+    }
     
-    // Add new line for 'v'
-    lt.add_line((int)lt.roots.size() - 1, {-sum[v], ans[v]});
+    // Add line to version p_ver, returns new version index
+    int add_line(int p_ver, ll k, ll d) {
+        return add_line(p_ver, {k, d});
+    }
     
-    yo(v, u);
+    int add_line(int p_ver, Line line) {
+        int old_root = roots[p_ver];
+        int new_root = upd(old_root, line, L, R);
+        roots.push_back(new_root);
+        return roots.size() - 1;
+    }
     
-    // Backtrack (Pop the version created for this subtree)
-    lt.roots.pop_back();
-  }
-}
+    // Query version p_ver at point x
+    ll query(int p_ver, ll x) {
+        return Query(roots[p_ver], x, L, R);
+    }
+};
 
-int main() {
-  ios_base::sync_with_stdio(0); cin.tie(0);
-  int n;
-  if (cin >> n) {
-      for(int i = 1; i < n; i++) {
-        int u, v, d; cin >> u >> v >> d;
-        g[u].eb(v, d); g[v].eb(u, d);
-      }
-      for(int i = 2; i <= n; i++) cin >> s[i] >> p[i];
-      
-      dfs(1);
-      
-      lt = PersistentLiChaoTree((ll) -1e9 - 10, (ll) 1e9 + 10);
-      // Base case line
-      lt.add_line(0, {0, 0}); // Adds to version 0, creates version 1
-      
-      // Start DP
-      // yo(1) assumes logic starts from 1
-      // Actually we should manually push for 1 if needed?
-      // The loop in 'yo' iterates children. 
-      // We need to handle root logic if root also adds a line?
-      // In this problem (Convex Hull Optimization on Trees), usually root is base case.
-      
-      // Code from original file:
-      // yo(1) iterates children of 1.
-      // So it queries for children using line from 1.
-      
-      yo(1);
-      
-      for(int i = 2; i <= n; i++) cout << ans[i] << (i == n ? "" : " ");
-      cout << nl;
-  }
-  return 0;
-}
+/**
+ * Example Usage:
+ * 
+ * // Basic usage
+ * PersistentLiChaoTree tree(-1e9, 1e9);
+ * int v0 = 0;  // Initial empty version
+ * int v1 = tree.add_line(v0, 2, 5);      // Add y = 2x + 5
+ * int v2 = tree.add_line(v1, -1, 10);   // Add y = -x + 10
+ * 
+ * ll ans1 = tree.query(v1, 5);  // Query version 1 at x=5
+ * ll ans2 = tree.query(v2, 5);  // Query version 2 at x=5
+ * 
+ * // Tree DP example
+ * vector<vector<int>> g;
+ * vector<ll> dp, s, p;
+ * 
+ * void dfs(int u, int par, PersistentLiChaoTree& tree, int ver) {
+ *     if (u != 1) {
+ *         dp[u] = tree.query(ver, p[u]) + s[u];
+ *     }
+ *     int new_ver = tree.add_line(ver, -s[u], dp[u]);
+ *     for (int v : g[u]) {
+ *         if (v != par) {
+ *             dfs(v, u, tree, new_ver);
+ *         }
+ *     }
+ * }
+ */

@@ -81,7 +81,7 @@ struct Blossom {
     }
     return false;
   }
-  int maximum_matching() {
+  int maximum_() {
     int ans = 0;
     vector<int> p(n - 1);
     iota(p.begin(), p.end(), 1);
@@ -116,13 +116,13 @@ int32_t main() {
       cin >> u >> v;
       M.add_edge(u, v);
     }
-    int ans = M.maximum_matching();
+    int ans = M.maximum_();
     if (ans * 2 == n) cout << 0 << '\n';
     else {
       memset(M.ad, 0, sizeof M.ad);
       for (int i = 1; i <= n; i++) if (M.match[i] == 0) M.bfs(i);
       int ans = 0;
-      for (int i = 1; i <= n; i++) ans += M.ad[i]; //nodes which are unmatched in some maximum matching
+      for (int i = 1; i <= n; i++) ans += M.ad[i]; //nodes which are unmatched in some maximum 
       cout << ans << '\n';
     }
   }

@@ -1,0 +1,89 @@
+#include <iostream>
+#include <vector>
+
+using namespace std;
+
+// --- START OF BLACKBOX ---
+struct MaxSlopeOptimizer {
+    struct Point {
+        long long x, y;
+    };
+    vector<Point> hull;
+
+    // Returns slope between a and b
+    double slope(const Point& a, const Point& b) {
+        return (double)(b.y - a.y) / (b.x - a.x);
+    }
+
+    // Check if point B is "bad" (redundant) given A (older) and C (newer)
+    // Bad if slope(A->B) >= slope(B->C)
+    // Cross product version to avoid precision errors: 
+    // (By - Ay) * (Cx - Bx) >= (Cy - By) * (Bx - Ax)
+    bool is_bad(const Point& A, const Point& B, const Point& C) {
+        return (B.y - A.y) * (C.x - B.x) >= (C.y - B.y) * (B.x - A.x);
+    }
+
+    void add_point(long long x, long long y) {
+        Point new_p = {x, y};
+        // Remove useless points from the back (Monotonic Stack logic)
+        while (hull.size() >= 2) {
+            if (is_bad(hull[hull.size() - 2], hull.back(), new_p)) {
+                hull.pop_back();
+            } else {
+                break;
+            }
+        }
+        hull.push_back(new_p);
+    }
+
+    // Binary search for the point that gives max slope to (curr_x, curr_y)
+    long long query(long long curr_x, long long curr_y) {
+        int l = 0, r = hull.size() - 1;
+        // The slopes from the hull points to the current point are unimodal.
+        // We ternary search / binary search for the peak.
+        while (l < r) {
+            int mid = (l + r) / 2;
+            Point p = {curr_x, curr_y};
+            if (slope(hull[mid], p) <= slope(hull[mid + 1], p)) {
+                l = mid + 1;
+            } else {
+                r = mid;
+            }
+        }
+        return hull[l].x;
+    }
+};
+// --- END OF BLACKBOX ---
+
+int main() {
+    ios_base::sync_with_stdio(false);
+    cin.tie(NULL);
+
+    int n;
+    if (!(cin >> n)) return 0;
+
+    vector<long long> a(n + 1);
+    vector<long long> P(n + 1, 0); // Prefix sums
+
+    MaxSlopeOptimizer optimizer;
+    
+    // Add the implicit "0" index: Point (0, 0)
+    optimizer.add_point(0, 0);
+
+    for (int i = 1; i <= n; i++) {
+        cin >> a[i];
+        P[i] = P[i - 1] + a[i];
+
+        // 1. Query best 'j' so far
+        long long best_j = optimizer.query(i, P[i]);
+        
+        // Output length
+        cout << (i - best_j) << (i == n ? "" : " ");
+
+        // 2. Add current point as a potential candidate for future queries
+        optimizer.add_point(i, P[i]);
+    }
+    cout << endl;
+
+    return 0;
+}
